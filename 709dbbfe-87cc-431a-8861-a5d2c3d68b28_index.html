@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>安然事件 · 人物关系图谱</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+    background:linear-gradient(135deg,#FDF4F1 0%,#F6F2F9 55%,#F1F6F4 100%);
+    color:#3A3338; min-height:100vh; padding:24px 16px;
+  }
+  .wrap { max-width:1240px; margin:0 auto; }
+  header { text-align:center; margin-bottom:14px; }
+  header h1 { font-size:26px; font-weight:900; color:#7A202C; letter-spacing:1px; }
+  header p { font-size:13px; color:#8A7A80; margin-top:6px; }
+  .stage-box { background:rgba(255,255,255,.55); border-radius:28px; padding:10px; box-shadow:0 12px 40px rgba(122,32,44,.10); }
+  .stage { position:relative; width:1200px; height:760px; margin:0 auto; }
+  svg.links { position:absolute; inset:0; width:1200px; height:760px; z-index:1; }
+  .node { position:absolute; z-index:10; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; transition:transform .18s ease, box-shadow .18s ease; }
+  .node:hover { transform:translateY(-4px) scale(1.03); }
+  .node.main { width:150px; height:150px; border-radius:28px; overflow:hidden; border:4px solid #F3D2D8; box-shadow:0 10px 26px rgba(122,32,44,.22); background:#fff; }
+  .node.main img { width:100%; height:100%; object-fit:cover; }
+  .node.main .tag { position:absolute; bottom:0; left:0; right:0; background:rgba(122,32,44,.82); color:#fff; font-size:12px; font-weight:700; padding:5px 4px; text-align:center; }
+  .node.minor { width:96px; height:96px; border-radius:22px; padding:8px; text-align:center; box-shadow:0 6px 16px rgba(90,60,70,.14); border:1px solid rgba(255,255,255,.7); }
+  .node.minor .nm { font-size:13px; font-weight:700; line-height:1.25; color:#4A3B40; }
+  .node.minor .en { font-size:10px; color:#8A7A80; margin-top:3px; line-height:1.2; }
+  .legend { display:flex; gap:18px; justify-content:center; flex-wrap:wrap; margin-top:14px; font-size:12px; color:#6A5A60; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .dot { width:12px; height:12px; border-radius:4px; display:inline-block; }
+  .dash-sample { width:26px; height:0; border-top:2px dashed #C99AA4; }
+
+  /* 弹窗 */
+  .mask { position:fixed; inset:0; background:rgba(58,35,42,.42); backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:100; padding:20px; }
+  .mask.show { display:flex; }
+  .modal { background:#fff; border-radius:24px; max-width:640px; width:100%; max-height:82vh; overflow-y:auto; padding:28px 30px; box-shadow:0 24px 60px rgba(60,30,40,.3); }
+  .modal h2 { font-size:21px; color:#7A202C; margin-bottom:4px; }
+  .modal .sub { font-size:13px; color:#8A7A80; margin-bottom:16px; }
+  .modal h3 { font-size:14px; color:#7A202C; margin:16px 0 8px; }
+  .modal p, .modal li { font-size:13.5px; line-height:1.7; color:#3A3338; }
+  .modal ul { padding-left:18px; }
+  .timeline { margin-top:6px; }
+  .tl-item { display:flex; gap:12px; padding:9px 0; border-bottom:1px dashed #EAD7DB; }
+  .tl-item:last-child { border-bottom:none; }
+  .tl-year { flex:0 0 96px; font-weight:700; color:#B85C6E; font-size:13px; }
+  .tl-text { flex:1; font-size:13px; line-height:1.6; }
+  .close { position:sticky; top:0; float:right; width:34px; height:34px; border-radius:50%; border:none; background:#F3D2D8; color:#7A202C; font-size:18px; cursor:pointer; font-weight:700; }
+  .close:hover { background:#E9B7C1; }
+  .rel-tag { display:inline-block; background:#FBECEF; color:#B85C6E; font-size:12px; font-weight:700; border-radius:10px; padding:3px 10px; margin-bottom:10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>安然事件 · 核心管理层与关键人物关系图谱</h1>
+    <p>点击人物图标查看身份、履历与纠葛；点击虚线弧线查看两人之间的事件完整介绍</p>
+  </header>
+  <div class="stage-box">
+    <div class="stage" id="stage">
+      <svg class="links" id="linksSvg"></svg>
+    </div>
+  </div>
+  <div class="legend">
+    <span><i class="dot" style="background:#F3D2D8"></i>三大核心人物（照片）</span>
+    <span><i class="dot" style="background:#E8DFF5"></i>次要人物 / 机构（姓名）</span>
+    <span><i class="dash-sample"></i>点击弧线查看关联事件</span>
+  </div>
+</div>
+
+<div class="mask" id="mask">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+/* ===== 数据 ===== */
+const PEOPLE = {
+  lay: {
+    type:'main', name:'Kenneth Lay', cn:'肯尼斯·莱', x:600, y:145,
+    photo:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/Oo9pbloZSobH8qxI4xCcKxpRnyE',
+    role:'安然创始人、董事会主席，一度兼任 CEO',
+    bio:'1942 年生于美国密苏里州，父亲为浸信会牧师，幼年家境不宽裕；密苏里大学经济学学士、硕士，后获休斯顿大学经济学博士；早年任埃克森公司经济学家，曾服役美国海军，后进入能源行业，创立并长期执掌安然。',
+    timeline:[
+      ['1985 年','推动两家天然气公司合并成立安然，出任董事长兼 CEO。'],
+      ['1989–2002 年','政治捐款累计约 580 万美元，其中约 73% 流向共和党；与布什家族交好，小布什昵称其 “Kenny Boy”，安然曾借私人飞机给布什。'],
+      ['2001.08','Jeffrey Skilling 突然辞职后，Lay 重新执掌 CEO 一职。'],
+      ['危机前后','被指控卖出超 7000 万美元股票用于偿还授信借款，另在公开市场卖出约 2900 万美元。'],
+      ['2001.11.28','妻子 Linda Lay 在丑闻公开当天上午抛售 50 万股、约 120 万美元；她辩称所得捐给已承诺的慈善机构。'],
+      ['2006 年','被陪审团裁定欺诈与共谋罪名成立；同年 7 月在量刑前去世，定罪随之失效。']
+    ]
+  },
+  skilling: {
+    type:'main', name:'Jeffrey Skilling', cn:'杰弗里·斯基林', x:280, y:470,
+    photo:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/A6yLbyTmkoI2L6xRz4dc2kWbnmf',
+    role:'历任 COO、CEO，业务扩张与激进会计路线的主要推手',
+    bio:'1953 年生于宾夕法尼亚州匹兹堡；南卫理公会大学学士，哈佛商学院 MBA；曾任麦肯锡合伙人，1990 年加入安然。',
+    timeline:[
+      ['1990 年','加入安然，推动公司由公用事业向能源交易商转型。'],
+      ['2001.02','接任安然 CEO。'],
+      ['2001.04.17','分析师电话会上被基金经理质疑“拿不出资产负债表和现金流量表”，当场回骂 “asshole”。'],
+      ['2001.06','在加州发表演讲时，被戴猪面具的 Global Exchange 抗议者扔派砸中舞台。'],
+      ['2001.08.14','以“个人原因”突然宣布辞职，在任仅半年。'],
+      ['2000.04–2001.09','SEC 指控其掌握内幕信息，卖出超 100 万股、非法获利约 6300 万美元。'],
+      ['国会作证','坚称对这套复杂丑闻“毫不知情”，与转污点证人的 Fastow 形成对比；始终不认罪。'],
+      ['2004.02.19','向 FBI 自首，对各项指控均不认罪。'],
+      ['2006 年','被陪审团裁定多项罪名成立，判处长期监禁。']
+    ]
+  },
+  fastow: {
+    type:'main', name:'Andrew Fastow', cn:'安德鲁·法斯托', x:920, y:470,
+    photo:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/RnCsb2wixoyh97xWLBxckzPQn21',
+    role:'首席财务官（CFO），表外财务工具的主要设计师',
+    bio:'1961 年生于美国华盛顿特区；塔夫茨大学经济学与中文文学士，西北大学凯洛格商学院 MBA；在安然主管财务并主导 SPE 表外架构。',
+    timeline:[
+      ['任职期间','主导设计 JEDI、Chewco、LJM1 等多个特殊目的实体（SPE），把债务与亏损移出安然合并报表。'],
+      ['私下牟利','在名义上“独立”的壳公司中持有个人股份，为亲友与自身谋取利益，从公司套走数千万美元。'],
+      ['夫妻涉案','妻子 Lea Fastow 曾任安然助理出纳，夫妻共同卷入这套架构。'],
+      ['2002.11','被联邦大陪审团以 78 项罪名起诉，罪名包括诈骗、洗钱等。'],
+      ['2004.01.14','认罪并转为污点证人，配合检方调查；没收约 2900 万美元以上资产，协议最高可判 10 年。'],
+      ['庭审阶段','出庭指证 Kenneth Lay 与 Jeffrey Skilling。'],
+      ['2006.09.26','被判 6 年监禁加 2 年缓刑，没收 2380 万美元；实际服刑约 5 年，2011 年转入出狱过渡安置。']
+    ]
+  },
+
+  linda:   { type:'minor', name:'Linda Lay', cn:'琳达·莱', x:150, y:250, color:'#FADADD',
+    role:'Kenneth Lay 的妻子',
+    rel:'与 Lay 的纠葛：2001 年 11 月 28 日安然丑闻公开当天上午，她抛售 50 万股、约 120 万美元；她辩称这笔钱没有留给家庭，而是捐给此前已承诺的慈善机构，外界质疑其精准离场。' },
+  watkins: { type:'minor', name:'Sherron Watkins', cn:'莎朗·沃特金斯', x:1050, y:250, color:'#D4EFDF',
+    role:'内部举报人（吹哨人）',
+    rel:'与 Lay 的纠葛：她内部写信向 Kenneth Lay 提示公司风险，但警告在管理层内部被搁置，未能阻止崩塌。她本人 2001 年 8 月卖出约 3 万美元股票、9 月下旬又卖出部分期权，被质疑是否借内幕离场；她称是受 9/11 事件冲击、恐慌所致。' },
+  mark:    { type:'minor', name:'Rebecca Mark', cn:'丽贝卡·马克', x:120, y:430, color:'#FCE4CC',
+    role:'国际业务负责人',
+    rel:'与核心管理层的纠葛：向 Lay、Skilling 汇报，主导高风险海外大型能源项目；这些项目后期成为亏损包袱，她较早离开安然，是业务线上的争议人物。' },
+  lea:     { type:'minor', name:'Lea Fastow', cn:'莉·法斯托', x:1030, y:610, color:'#E8DFF5',
+    role:'Andrew Fastow 的妻子，前安然助理出纳',
+    rel:'与 Fastow 的纠葛：夫妻档共同涉案，帮助隐瞒 SPE 架构中的非法所得，并申报了虚假的 2000 年联合报税单；她认罪入狱，配合检方换取减刑，被外界看成“夫妻各算各的账”。' },
+  causey:  { type:'minor', name:'Richard Causey', cn:'理查德·考西', x:760, y:630, color:'#D6E8F7',
+    role:'首席会计官（总会计师）',
+    rel:'与 Fastow 的纠葛：同属安然财务会计体系，对外发布虚假陈述欺骗投资者；2005 年 12 月认罪，2006 年 11 月被判 5 年半监禁。' },
+  glisan:  { type:'minor', name:'Ben Glisan Jr.', cn:'本·格利森', x:440, y:630, color:'#D0EEEA',
+    role:'前安然出纳',
+    rel:'与 Fastow 的纠葛：Fastow 财务团队下属，是最早因安然事件入狱的高管之一，承认共谋证券欺诈与邮电欺诈。' },
+  rieker:  { type:'minor', name:'Paula Rieker', cn:'保拉·里克', x:190, y:560, color:'#FBDCD6',
+    role:'前安然高管',
+    rel:'与 Skilling 的纠葛：同属安然高管层；她在公开 1.02 亿美元亏损前一周卖出 1.8 万多股（成本约 15.51 美元、售价约 49.77 美元），被控内幕交易，被判两年缓刑。' },
+  forney:  { type:'minor', name:'John Forney', cn:'约翰·福尼', x:1030, y:430, color:'#E9F3D0',
+    role:'能源交易员',
+    rel:'与 Skilling 交易业务线的纠葛：因“死亡之星”等电力交易策略涉嫌欺诈被起诉；他的上司后来成为该案的污点证人。' },
+  andersen:{ type:'minor', name:'Arthur Andersen', cn:'安达信', x:930, y:320, color:'#F2DDE2',
+    role:'外部审计机构，原全球“五大”之一',
+    rel:'与核心三人组的纠葛：长期担任安然外部审计师，同时收取高额审计与咨询费用，审计与咨询在同一客户上并存，独立性失效；休斯顿分所销毁安然相关文件与电子档案，2002 年被定罪后业务流失、解体退出审计市场，原“五大”变为“四大”。' },
+  duncan:  { type:'minor', name:'David Duncan', cn:'大卫·邓肯', x:800, y:270, color:'#E6D9E2',
+    role:'Arthur Andersen 主审合伙人',
+    rel:'与 Andersen 的纠葛：负责安然审计，是事后销毁安然相关审计文件与电子档案事件的核心执行者。' },
+  banks:   { type:'minor', name:'投行 · 评级 · 分析师', cn:'外部背书方', x:820, y:130, color:'#FBF3D2',
+    role:'外部融资、交易设计与市场背书方',
+    rel:'与审计及核心层的纠葛：参与交易结构设计与融资，长期维持看多与乐观评级，风险揭示反应滞后；事后花旗集团、摩根大通、美国银行等因涉嫌财务欺诈，分别向破产受害者赔偿约 20 亿、22 亿和 6900 万美元。' },
+  staff:   { type:'minor', name:'员工与退休人员', cn:'被绑定的受害者', x:600, y:700, color:'#DDE8DA',
+    role:'安然普通员工与退休人员群体',
+    rel:'与核心管理层的纠葛：被狼性文化、期权和退休金计划绑定，不少人同时持有公司股票；公司崩塌后大量失业，个人养老金与持股损失严重。' }
+};
+
+/* 连线：相互事件 */
+const LINKS = [
+  { from:'lay', to:'skilling', title:'Lay × Skilling：平台与扩张合伙人，事后相互甩锅',
+    desc:'Lay 提供政商人脉与资源平台，Skilling 提出能源交易模式与激进扩张路线，二人互相成就。2001 年 8 月 Skilling 突然辞职后，Lay 重新执掌 CEO；事发后两人均试图把责任推给下属、财务或市场，在庭审中相互切割。' },
+  { from:'lay', to:'fastow', title:'Lay × Fastow：老板庇护财务方案，污点证人反指 Lay',
+    desc:'Lay 作为董事会主席信任并庇护 Fastow 的表外结构。Fastow 认罪转为污点证人后，出庭指证 Lay 知情并配合掩盖；Lay 则辩称自己被下属蒙蔽，最终被裁定有罪，判决前去世。' },
+  { from:'skilling', to:'fastow', title:'Skilling × Fastow：业务扩张与财务包装互相利用',
+    desc:'Skilling 负责业务故事与增长叙事，Fastow 用 SPE 表外工具把亏损和债务藏起来，支撑股价与报表。两人互相依赖；出事之后相互切割，Fastow 作为污点证人出庭指证 Skilling，Skilling 始终否认知情。' },
+  { from:'lay', to:'linda', title:'Lay × Linda Lay：夫妻二人危机前后减持',
+    desc:'Lay 本人被指控在问题暴露前后卖出超 7000 万美元股票偿还授信借款，另在公开市场卖出约 2900 万美元。妻子 Linda Lay 于 2001 年 11 月 28 日丑闻公开当天上午抛售 50 万股、约 120 万美元，辩称所得捐给慈善机构，被质疑精准离场。' },
+  { from:'lay', to:'watkins', title:'Lay × Watkins：吹哨人警告被搁置',
+    desc:'Sherron Watkins 内部写信向 Lay 提示安然的财务风险，但这份预警在管理层内部未被真正采纳，未能阻止后续崩塌。Watkins 本人也被扒出在 2001 年 8 月卖出约 3 万美元股票、9 月下旬卖出部分期权，她称是受 9/11 冲击恐慌所致。' },
+  { from:'fastow', to:'lea', title:'Fastow × Lea Fastow：夫妻档共同涉案、各自减刑',
+    desc:'Andrew Fastow 的妻子 Lea Fastow 曾任安然助理出纳，参与帮助隐瞒 SPE 架构中的非法所得，并申报虚假联合报税单。夫妻二人先后认罪，Lea 配合检方换取较轻处理；外界把这对夫妻看成各算各账、相互切割的典型。' },
+  { from:'fastow', to:'causey', title:'Fastow × Causey：财务与会计体系同谋',
+    desc:'Chief Financial Officer Fastow 与首席会计官 Richard Causey 同属安然财务会计核心，对外发布虚假财务陈述、刻意误导投资者。Causey 于 2005 年 12 月认罪，2006 年 11 月被判处 5 年半监禁。' },
+  { from:'fastow', to:'glisan', title:'Fastow × Glisan：财务团队下属最早入狱',
+    desc:'前出纳 Ben Glisan Jr. 是 Fastow 财务团队的下属，也是最早因安然事件被送进监狱的高管之一，承认共谋证券欺诈以及邮电欺诈。' },
+  { from:'skilling', to:'rieker', title:'Skilling × Rieker：高管层内幕交易',
+    desc:'Paula Rieker 与 Skilling 同属安然高管层。她在公司公开 1.02 亿美元亏损前一周，以约 15.51 美元/股买入 1.8 万多股、7 月以约 49.77 美元/股卖出，被控内幕交易，最终被判两年缓刑。' },
+  { from:'skilling', to:'forney', title:'Skilling × Forney：交易业务线的欺诈争议',
+    desc:'能源交易员 John Forney 隶属 Skilling 主导的交易业务线，因“死亡之星”等电力交易策略涉嫌欺诈被起诉；他的上司后来转为该案污点证人。' },
+  { from:'andersen', to:'duncan', title:'Andersen × Duncan：主审合伙人执行文件销毁',
+    desc:'David Duncan 是 Arthur Andersen 负责安然审计的主审合伙人，也是休斯顿分所销毁安然相关审计文件与电子档案事件的核心执行者；这一行为直接导致安达信被定罪、解体。' },
+  { from:'lay', to:'andersen', title:'核心三人组 × Andersen：审计独立性失效',
+    desc:'安达信长期担任安然外部审计师，同时向安然提供咨询等非审计服务，审计与咨询收入在同一客户上并存，独立性被削弱。面对 Fastow 等人的高风险会计做法，安达信未能有效纠正；事发后又销毁文件，最终事务所解体，五大变四大。' },
+  { from:'andersen', to:'banks', title:'审计 × 外部机构：外部背书链条',
+    desc:'除审计机构外，外部投行参与交易结构设计与融资，评级机构与卖方分析师长期维持看多与乐观评级，共同构成支撑安然股价的外部信心链条。事后花旗集团、摩根大通、美国银行等因涉嫌财务欺诈，分别向破产受害者赔偿约 20 亿、22 亿和 6900 万美元。' },
+  { from:'lay', to:'staff', title:'核心管理层 × 员工群体：被文化与退休金绑定',
+    desc:'核心管理层用狼性文化、高薪、期权和退休金计划把员工与公司绑定，鼓励员工持有安然股票。公司崩塌后，上万名员工失业，许多人的个人养老金与持股同时归零，成为这起事件中最直接的受害者群体。' },
+  { from:'mark', to:'skilling', title:'Mark × Skilling：海外项目包袱',
+    desc:'Rebecca Mark 主导的海外大型高风险能源项目向 Skilling 等核心管理层汇报，这些项目后期成为公司亏损包袱；Mark 较早离开安然，其遗留业务是安然业务线上的争议部分。' }
+];
+
+/* ===== 渲染 ===== */
+const stage = document.getElementById('stage');
+const svg = document.getElementById('linksSvg');
+const NS = 'http://www.w3.org/2000/svg';
+
+function curvePath(a, b){
+  const mx = (a.x + b.x) / 2;
+  const dy = b.y - a.y;
+  const c1x = mx, c1y = a.y + dy * 0.35;
+  const c2x = mx, c2y = b.y - dy * 0.35;
+  return `M ${a.x} ${a.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${b.x} ${b.y}`;
+}
+
+LINKS.forEach((lk, i) => {
+  const a = PEOPLE[lk.from], b = PEOPLE[lk.to];
+  const path = document.createElementNS(NS, 'path');
+  path.setAttribute('d', curvePath(a, b));
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', '#C99AA4');
+  path.setAttribute('stroke-width', '2');
+  path.setAttribute('stroke-dasharray', '7 7');
+  path.setAttribute('stroke-linecap', 'round');
+  path.style.cursor = 'pointer';
+  path.style.opacity = '.75';
+  path.addEventListener('mouseenter', () => { path.setAttribute('stroke', '#B85C6E'); path.style.opacity='1'; });
+  path.addEventListener('mouseleave', () => { path.setAttribute('stroke', '#C99AA4'); path.style.opacity='.75'; });
+  path.addEventListener('click', () => openLink(lk));
+  svg.appendChild(path);
+});
+
+Object.entries(PEOPLE).forEach(([id, p]) => {
+  const el = document.createElement('div');
+  el.className = 'node ' + p.type;
+  const w = p.type === 'main' ? 150 : 96;
+  el.style.left = (p.x - w/2) + 'px';
+  el.style.top = (p.y - w/2) + 'px';
+  if (p.type === 'minor') el.style.background = p.color;
+  if (p.type === 'main'){
+    el.innerHTML = `<img src="${p.photo}" alt="${p.name}"><div class="tag">${p.cn}</div>`;
+  } else {
+    el.innerHTML = `<div class="nm">${p.cn}</div><div class="en">${p.name}</div>`;
+  }
+  el.addEventListener('click', () => openPerson(id));
+  stage.appendChild(el);
+});
+
+/* ===== 弹窗 ===== */
+const mask = document.getElementById('mask');
+const modal = document.getElementById('modal');
+
+function openPerson(id){
+  const p = PEOPLE[id];
+  let html = `<button class="close" onclick="closeModal()">×</button>`;
+  html += `<h2>${p.cn} <span style="font-size:15px;color:#8A7A80">${p.name}</span></h2>`;
+  html += `<div class="sub">${p.role}</div>`;
+  if (p.type === 'main'){
+    html += `<h3>身份与履历</h3><p>${p.bio}</p><h3>经历时间线</h3><div class="timeline">`;
+    p.timeline.forEach(t => {
+      html += `<div class="tl-item"><div class="tl-year">${t[0]}</div><div class="tl-text">${t[1]}</div></div>`;
+    });
+    html += `</div>`;
+  } else {
+    html += `<span class="rel-tag">身份与纠葛</span><p>${p.rel}</p>`;
+  }
+  modal.innerHTML = html;
+  mask.classList.add('show');
+}
+
+function openLink(lk){
+  let html = `<button class="close" onclick="closeModal()">×</button>`;
+  html += `<h2>${lk.title}</h2>`;
+  html += `<h3>事件完整介绍</h3><p>${lk.desc}</p>`;
+  modal.innerHTML = html;
+  mask.classList.add('show');
+}
+
+function closeModal(){ mask.classList.remove('show'); }
+mask.addEventListener('click', e => { if (e.target === mask) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+</script>
+</body>
+</html>
